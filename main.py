@@ -4,7 +4,11 @@ import torch
 import torchvision
 from torchvision import transforms, datasets
 
+# visualization the data
+import matplotlib.pyplot as plt
+
 BATCH_SIZE = 10
+
 
 def data():
     # download the date
@@ -16,12 +20,25 @@ def data():
     test_set = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
     return train_set, test_set
 
+
+def visual_data(d,x=0,y=0):
+    plt.imshow(d[x][y].view(d[x][y].shape[1], d[x][y].shape[2]))
+    plt.show()
+
+
 def main():
     train_set, test_set = data()
 
+    for d in train_set:
+        x = d[0][0]
+        y = d[1][0]
+        # print(x)
+        # print(y)
+        visual_data(d)
+        break
 
-# Press the green button in the gutter to run the script.
+
+
 if __name__ == '__main__':
     main()
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
