@@ -1,4 +1,6 @@
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 # for working with data
 import torchvision
@@ -21,13 +23,30 @@ def data():
     return train_set, test_set
 
 
-def visual_data(d,x=0,y=0):
+def visual_data(d, x=0, y=0):
     plt.imshow(d[x][y].view(d[x][y].shape[1], d[x][y].shape[2]))
     plt.show()
 
 
+class Net(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc1 = nn.Linear(28*28, 64)  # fc = fully connected, 28*28 number of pixels
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, 64)
+        self.fc4 = nn.Linear(64, 10)  # 10 is the 10 output option
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))  # relu = rectified linear
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
+        x = self.fc4(x)
+        return F.log_softmax(x, dim=1)
+
+
 def main():
     train_set, test_set = data()
+    net = Net()
 
     for d in train_set:
         x = d[0][0]
