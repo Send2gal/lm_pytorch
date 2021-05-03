@@ -9,6 +9,7 @@ from torchvision import transforms, datasets
 # visualization the data
 import matplotlib.pyplot as plt
 
+import torch.optim as optim
 BATCH_SIZE = 10
 
 
@@ -47,14 +48,41 @@ class Net(nn.Module):
 def main():
     train_set, test_set = data()
     net = Net()
+    optimizer = optim.Adam(net.parameters(), lr=0.001)  # lr = learning rate
+    EPOCHS = 20
 
-    for d in train_set:
-        x = d[0][0]
-        y = d[1][0]
-        # print(x)
-        # print(y)
-        visual_data(d)
-        break
+    def get_accuracy():
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for _data in test_set:
+                X, y = _data
+                output = net(X.view(-1, 28 * 28))
+                for idx, i in enumerate(output):
+                    if torch.argmax(i) == y[idx]:
+                        correct += 1
+                    total += 1
+        print(f"Accuracy: {(100*(correct / total))} %")
+
+    for epoch in range(EPOCHS):
+        for _data in train_set:
+            X, y = _data
+            net.zero_grad()
+            output = net(X.view(-1, 28*28))
+            loss = F.nll_loss(output, y)
+            loss.backward()
+            optimizer.step()
+        # print(loss)
+        get_accuracy()
+
+
+    # for d in train_set:
+    #     x = d[0][0]
+    #     y = d[1][0]
+    #     # print(x)
+    #     # print(y)
+    #     visual_data(d)
+    #     break
 
 
 
