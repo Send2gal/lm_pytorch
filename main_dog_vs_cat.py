@@ -139,7 +139,7 @@ class Main():
         with torch.no_grad():
             for i in tqdm(range(len(self.test_x))):
                 real_class = torch.argmax((self.test_y[i]))
-                net_out = self.net(self.test_x[i].view(-1, 1, 50, 50))[0]
+                net_out = self.net(self.test_x[i].view(-1, 1, 50, 50).to(self.device))[0]
                 predicted_class = torch.argmax(net_out)
                 if predicted_class == real_class:
                     correct += 1
