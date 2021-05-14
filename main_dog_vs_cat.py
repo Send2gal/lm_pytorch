@@ -1,6 +1,9 @@
 #kaggle competitions download -c dogs-vs-cats
 
+import time
 import os
+from datetime import datetime
+
 import cv2
 import numpy as np
 from tqdm import tqdm
@@ -9,15 +12,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.utils.tensorboard import SummaryWriter
+
 
 REBUILD_DATA = False
+IMG_SIZE = 50
 VAL_PCT = 0.1
 LR = 0.001
 BATCH_SIZE = 100
-EPOCHS = 1
+EPOCHS = 3
+CALC_ACCURACY = 50
 
-class DogVSCats():
-    IMG_SIZE = 50
+class DogVSCats(object):
     CATS = "dog-vs-cats/train/cats"
     DOGS = "dog-vs-cats/train/dogs"
     LABELS = {CATS: 0, DOGS: 1}
@@ -32,8 +38,11 @@ class DogVSCats():
                 try:
                     path = os.path.join(label, f)
                     img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-                    img = cv2.resize(img, (self.IMG_SIZE, self.IMG_SIZE))
+                    img_flip = cv2.flip(img, 1)
+                    img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
+                    img_flip = cv2.resize(img_flip, (IMG_SIZE, IMG_SIZE))
                     self.training_data.append([np.array(img), np.eye(2)[self.LABELS[label]]])
+                    self.training_data.append([np.array(img_flip), np.eye(2)[self.LABELS[label]]])
 
                     if label == self.CATS:
                         self.cat_count += 1
@@ -55,7 +64,7 @@ class Net(nn.Module):
         self.conv2 = nn.Conv2d(32, 64, 5)
         self.conv3 = nn.Conv2d(64, 128, 5)
 
-        x = torch.randn(50, 50).view(-1, 1, 50, 50)
+        x = torch.randn(IMG_SIZE, IMG_SIZE).view(-1, 1, IMG_SIZE, IMG_SIZE)
         self._to_linear = None
         self.convs(x)
 
@@ -108,7 +117,7 @@ class Main():
         dog_vs_cat.make_training_data()
 
     def prepare_data(self):
-        X = torch.Tensor([i[0] for i in self.training_data]).view(-1, 50, 50)
+        X = torch.Tensor([i[0] for i in self.training_data]).view(-1, IMG_SIZE, IMG_SIZE)
         X = X / 255.0
         y = torch.Tensor([i[1] for i in self.training_data])
         val_size = int(len(X) * VAL_PCT)
@@ -121,17 +130,22 @@ class Main():
         self.test_y = y[-val_size:]
 
     def train(self, epochs, batch_size):
+        writer = SummaryWriter(f"runs/{datetime.now().strftime('%d_%m_%Y')}_model_flip_epoch_{epochs}")
+
         for epoch in range(epochs):
             for i in tqdm(range(0, len(self.train_x), batch_size)):
                 # print(i, i+BATCH_SIZE)
-                batch_x = self.train_x[i:i+batch_size].view(-1, 1, 50, 50).to(self.device)
+                batch_x = self.train_x[i:i+batch_size].view(-1, 1, IMG_SIZE, IMG_SIZE).to(self.device)
                 batch_y = self.train_y[i:i+batch_size].to(self.device)
 
-                self.optimizer.zero_grad()
-                outputs = self.net(batch_x)
-                loss = self.loss_function(outputs, batch_y)
-                loss.backward()
-                self.optimizer.step()
+                acc, loss = self.forward_pass(batch_x, batch_y, train=True)
+                if i % CALC_ACCURACY == 0:
+                    val_acc, val_loss = self.test_(size=32)
+                    _x = len(self.train_x)*epoch + i
+                    writer.add_scalar('Loss/test', round(float(val_loss), 4), _x)
+                    writer.add_scalar('Loss/train', round(float(loss), 4), _x)
+                    writer.add_scalar('Accuracy/test', round(float(val_loss), 4), _x)
+                    writer.add_scalar('Accuracy/train', round(float(acc), 4), _x)
 
     def test(self):
         correct = 0
@@ -139,19 +153,41 @@ class Main():
         with torch.no_grad():
             for i in tqdm(range(len(self.test_x))):
                 real_class = torch.argmax((self.test_y[i]))
-                net_out = self.net(self.test_x[i].view(-1, 1, 50, 50).to(self.device))[0]
+                net_out = self.net(self.test_x[i].view(-1, 1, IMG_SIZE, IMG_SIZE).to(self.device))[0]
                 predicted_class = torch.argmax(net_out)
                 if predicted_class == real_class:
                     correct += 1
                 total += 1
         print(f"Acuuracy: {round(correct / total, 3) * 100}")
 
+    def forward_pass(self, x, y, train=False):
+        if train:
+            self.net.zero_grad()
+        outputs = self.net(x)
+        matches = [torch.argmax(i) == torch.argmax(j) for i, j in zip(outputs, y)]
+        accuracy = matches.count(True)/len(matches)
+        loss = self.loss_function(outputs, y)
+
+        if train:
+            loss.backward()
+            self.optimizer.step()
+        return accuracy, loss
+
+    def test_(self, size=32):
+        random_start = np.random.randint(len(self.test_x)-size)
+        x = self.test_x[random_start:random_start+size].view(-1, 1, IMG_SIZE, IMG_SIZE).to(self.device)
+        y = self.test_y[random_start:random_start+size].to(self.device)
+        with torch.no_grad():
+            val_acc, val_loss = self.forward_pass(x, y, train=False)
+        return val_acc, val_loss
+
 
 def main():
-    main_obj = Main()
-    main_obj.prepare_data()
-    for i in range(10):
-        main_obj.train(i, BATCH_SIZE)
+
+    for EPOCHS in range(1, 10):
+        main_obj = Main()
+        main_obj.prepare_data()
+        main_obj.train(EPOCHS, BATCH_SIZE)
         main_obj.test()
 
 
