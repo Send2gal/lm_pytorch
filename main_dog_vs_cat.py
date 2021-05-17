@@ -142,9 +142,10 @@ class Main():
                 if i % CALC_ACCURACY == 0:
                     val_acc, val_loss = self.test_(size=32)
                     _x = len(self.train_x)*epoch + i
+                    # val == validation
                     writer.add_scalar('Loss/test', round(float(val_loss), 4), _x)
                     writer.add_scalar('Loss/train', round(float(loss), 4), _x)
-                    writer.add_scalar('Accuracy/test', round(float(val_loss), 4), _x)
+                    writer.add_scalar('Accuracy/test', round(float(val_acc), 4), _x)
                     writer.add_scalar('Accuracy/train', round(float(acc), 4), _x)
 
     def test(self):
@@ -158,7 +159,7 @@ class Main():
                 if predicted_class == real_class:
                     correct += 1
                 total += 1
-        print(f"Acuuracy: {round(correct / total, 3) * 100}")
+        print(f"Acuuracy: {round(correct / total, 3) * 100}\n")
 
     def forward_pass(self, x, y, train=False):
         if train:
@@ -184,10 +185,11 @@ class Main():
 
 def main():
 
-    for EPOCHS in range(1, 10):
+    for EPOCHS in range(3, 10):
         main_obj = Main()
         main_obj.prepare_data()
         main_obj.train(EPOCHS, BATCH_SIZE)
+        print(f"\nEPOCHS: {EPOCHS}")
         main_obj.test()
 
 
